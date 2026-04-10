@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🖥️ 호스트 - 폭탄 돌리기</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background: linear-gradient(135deg, #0F0C29, #302B63, #24243E);
+      min-height: 100vh; color: #fff;
+      display: flex; flex-direction: column; align-items: center;
+      transition: background 0.5s ease;
+    }
+    body.tension-high {
+      animation: bgPulse 0.5s ease-in-out infinite alternate;
+    }
+    @keyframes bgPulse {
+      from { background: linear-gradient(135deg, #0F0C29, #302B63, #24243E); }
+      to { background: linear-gradient(135deg, #3D0000, #8B0000, #3D0000); }
+    }
+    .container {
+      max-width: 900px; width: 100%; padding: 30px 20px;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    h1 {
+      font-size: 2rem; font-weight: 900; margin-bottom: 6px;
+      background: linear-gradient(135deg, #FF6B6B, #FFE66D);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .sub { color: #888; margin-bottom: 30px; font-size: 0.9rem; }
+
+    /* 로비 */
+    .lobby { text-align: center; width: 100%; }
+    .pin-display {
+      background: rgba(255,255,255,0.08); border-radius: 24px;
+      padding: 30px; margin-bottom: 24px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .pin-label { font-size: 1rem; color: #aaa; margin-bottom: 10px; }
+    .pin-number {
+      font-family: 'Orbitron', monospace;
+      font-size: 4rem; font-weight: 900; letter-spacing: 12px;
+      color: #FFE66D;
+      text-shadow: 0 0 20px rgba(255,230,109,0.4);
+    }
+    .qr-area { margin: 20px 0; }
+    .qr-area img { border-radius: 16px; background: #fff; padding: 10px; }
+    .player-list-title {
+      font-size: 1.1rem; margin: 20px 0 12px; color: #ccc;
+    }
+    .player-grid {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      justify-content: center; margin-bottom: 24px;
+    }
+    .player-chip {
+      background: rgba(78,205,196,0.15); border: 1px solid rgba(78,205,196,0.3);
+      padding: 10px 20px; border-radius: 30px;
+      font-size: 0.95rem; font-weight: 700; color: #4ECDC4;
+      transition: all 0.3s ease;
+    }
+    .player-chip.disconnected {
+      opacity: 0.4; text-decoration: line-through;
+    }
+    .btn-start-game {
+      padding: 18px 60px; border: none; border-radius: 18px;
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 1.3rem; font-weight: 900; cursor: pointer;
+      background: linear-gradient(135deg, #FF6B6B, #EE5A24);
+      color: #fff; box-shadow: 0 8px 30px rgba(255,107,107,0.4);
+      transition: all 0.3s ease;
+    }
+    .btn-start-game:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(255,107,107,0.6); }
+    .btn-start-game:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* 게임 진행 중 */
+    .game-area { display: none; text-align: center; width: 100%; }
+    .game-status {
+      font-size: 1.3rem; color: #aaa; margin-bottom: 20px;
+    }
+    .bomb-holder-display {
+      background: rgba(255,107,107,0.1);
+      border: 2px solid rgba(255,107,107,0.3);
+      border-radius: 28px; padding: 40px; margin-bottom: 20px;
+      transition: all 0.3s ease;
+    }
+    .bomb-holder-display .bomb-emoji {
+      font-size: 5rem; animation: bombShake 0.5s ease-in-out infinite;
+    }
+    @keyframes bombShake {
+      0%, 100% { transform: rotate(0deg); }
+      25% { transform: rotate(-5deg); }
+      75% { transform: rotate(5deg); }
+    }
+    .bomb-holder-display .holder-name {
+      font-size: 2.5rem; font-weight: 900; margin-top: 10px;
+      color: #FF6B6B;
+    }
+    .bomb-holder-display .holder-sub {
+      color: #cc8888; font-size: 1rem; margin-top: 6px;
+    }
+    .pass-log {
+      background: rgba(255,255,255,0.05); border-radius: 16px;
+      padding: 20px; max-height: 200px; overflow-y: auto;
+      margin-bottom: 20px; text-align: left;
+    }
+    .pass-log-item {
+      padding: 6px 0; color: #999; font-size: 0.85rem;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .pass-log-item:last-child { border-bottom: none; }
+    .pass-log-item span { color: #FFE66D; font-weight: 700; }
+
+    /* 결과 화면 */
+    .result-area { display: none; text-align: center; width: 100%; }
+    .result-card {
+      background: rgba(255,60,60,0.1);
+      border: 2px solid rgba(255,60,60,0.3);
+      border-radius: 28px; padding: 50px 30px;
+      margin-bottom: 30px;
+      animation: resultAppear 0.6s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    @keyframes resultAppear {
+      from { opacity: 0; transform: scale(0.5); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .result-card .explosion-emoji {
+      font-size: 6rem; animation: explosionPulse 0.6s ease-in-out infinite alternate;
+    }
+    @keyframes explosionPulse {
+      from { transform: scale(1); }
+      to { transform: scale(1.15); }
+    }
+    .result-card .loser-name {
+      font-size: 3rem; font-weight: 900; color: #FF6B6B;
+      margin: 16px 0 8px;
+    }
+    .result-card .loser-msg {
+      color: #cc8888; font-size: 1.1rem;
+    }
+    .btn-reset {
+      padding: 18px 60px; border: none; border-radius: 18px;
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 1.2rem; font-weight: 700; cursor: pointer;
+      background: linear-gradient(135deg, #4ECDC4, #44BD9E);
+      color: #fff; box-shadow: 0 8px 30px rgba(78,205,196,0.4);
+      transition: all 0.3s ease;
+    }
+    .btn-reset:hover { transform: translateY(-3px); }
+
+    /* 긴장감 오버레이 */
+    .tension-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 50;
+      border: 0px solid rgba(255,0,0,0);
+      transition: border-width 0.3s ease, border-color 0.3s ease;
+    }
+    .tension-overlay.active {
+      animation: tensionFlash 1s ease-in-out infinite;
+    }
+    @keyframes tensionFlash {
+      0%, 100% { border-color: rgba(255,0,0,0); }
+      50% { border-color: rgba(255,0,0,0.4); }
+    }
+
+    .hidden { display: none !important; }
+    .container { position: relative; z-index: 1; }
+  </style>
+</head>
+<body>
+  <div class="tension-overlay" id="tensionOverlay"></div>
+  <div class="container">
+    <h1>🧨 폭탄 돌리기</h1>
+    <p class="sub">호스트 컨트롤 패널</p>
+
+    <!-- 로비 -->
+    <div class="lobby" id="lobbyArea">
+      <div class="pin-display">
+        <div class="pin-label">접속 코드</div>
+        <div class="pin-number" id="pinDisplay">------</div>
+      </div>
+      <div class="qr-area" id="qrArea"></div>
+      <div class="player-list-title">참가자 (<span id="playerCount">0</span>명)</div>
+      <div class="player-grid" id="playerGrid"></div>
+      <button class="btn-start-game" id="btnStartGame" onclick="startGame()" disabled>
+        🎮 게임 시작
+      </button>
+    </div>
+
+    <!-- 게임 진행 -->
+    <div class="game-area" id="gameArea">
+      <div class="game-status">🔥 게임 진행 중...</div>
+      <div class="bomb-holder-display" id="bombHolderDisplay">
+        <div class="bomb-emoji">🧨</div>
+        <div class="holder-name" id="holderName">---</div>
+        <div class="holder-sub">폭탄 보유 중...</div>
+      </div>
+      <div class="pass-log" id="passLog"></div>
+    </div>
+
+    <!-- 결과 -->
+    <div class="result-area" id="resultArea">
+      <div class="result-card">
+        <div class="explosion-emoji">💥🧨💥</div>
+        <div class="loser-name" id="loserName">---</div>
+        <div class="loser-msg">펑! 폭탄이 터졌습니다! 🎉</div>
+      </div>
+      <button class="btn-reset" onclick="resetGame()">🔄 다시 하기</button>
+    </div>
+  </div>
+
+  <script>
+    var socket = io();
+    var currentPin = '';
+
+    // 방 만들기
+    socket.emit('create-room', function(res) {
+      if (res.success) {
+        currentPin = res.pin;
+        document.getElementById('pinDisplay').textContent = res.pin;
+        loadQR(res.pin);
+      }
+    });
+
+    function loadQR(pin) {
+      fetch('/api/qr/' + pin)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          document.getElementById('qrArea').innerHTML =
+            '<img src="' + data.qr + '" alt="QR Code" width="200"><br>' +
+            '<p style="color:#888;font-size:0.8rem;margin-top:8px;">' + data.url + '</p>';
+        });
+    }
+
+    // 참가자 목록 업데이트
+    socket.on('player-list', function(players) {
+      var grid = document.getElementById('playerGrid');
+      grid.innerHTML = '';
+      var count = 0;
+      players.forEach(function(p) {
+        var chip = document.createElement('div');
+        chip.className = 'player-chip' + (p.connected ? '' : ' disconnected');
+        chip.textContent = (p.connected ? '😀 ' : '😴 ') + p.nickname;
+        grid.appendChild(chip);
+        if (p.connected) count++;
+      });
+      document.getElementById('playerCount').textContent = count;
+      document.getElementById('btnStartGame').disabled = count < 2;
+    });
+
+    // 게임 시작
+    function startGame() {
+      socket.emit('start-game', function(res) {
+        if (!res.success) {
+          alert(res.message);
+        }
+      });
+    }
+
+    socket.on('game-started', function(data) {
+      document.getElementById('lobbyArea').classList.add('hidden');
+      document.getElementById('gameArea').classList.remove('hidden');
+      document.getElementById('resultArea').classList.add('hidden');
+      document.getElementById('holderName').textContent = data.bombHolderName;
+      document.getElementById('passLog').innerHTML = '';
+      addLog(data.bombHolderName + ' 에게 폭탄 배달 완료!');
+    });
+
+    // 폭탄 패스 로그
+    socket.on('bomb-passed', function(data) {
+      document.getElementById('holderName').textContent = data.bombHolderName;
+      addLog(data.from + ' → ' + data.bombHolderName);
+    });
+
+    function addLog(msg) {
+      var log = document.getElementById('passLog');
+      var item = document.createElement('div');
+      item.className = 'pass-log-item';
+      var now = new Date();
+      var time = String(now.getHours()).padStart(2, '0') + ':' +
+                 String(now.getMinutes()).padStart(2, '0') + ':' +
+                 String(now.getSeconds()).padStart(2, '0');
+      item.innerHTML = '<span>[' + time + ']</span> ' + msg;
+      log.insertBefore(item, log.firstChild);
+    }
+
+    // 긴장감 업데이트
+    socket.on('tension-update', function(data) {
+      var overlay = document.getElementById('tensionOverlay');
+      var ratio = data.ratio;
+      if (ratio > 0.5) {
+        overlay.classList.add('active');
+        var borderWidth = Math.floor(ratio * 20);
+        overlay.style.borderWidth = borderWidth + 'px';
+        var speed = Math.max(0.2, 1 - ratio * 0.8);
+        overlay.style.animationDuration = speed + 's';
+      }
+      if (ratio > 0.7) {
+        document.body.classList.add('tension-high');
+      } else {
+        document.body.classList.remove('tension-high');
+      }
+    });
+
+    // 폭발!
+    socket.on('bomb-exploded', function(data) {
+      document.getElementById('gameArea').classList.add('hidden');
+      document.getElementById('resultArea').classList.remove('hidden');
+      document.getElementById('loserName').textContent = '💀 ' + data.loserName + ' 💀';
+      document.body.classList.remove('tension-high');
+      document.getElementById('tensionOverlay').classList.remove('active');
+      document.getElementById('tensionOverlay').style.borderWidth = '0';
+    });
+
+    // 리셋
+    function resetGame() {
+      socket.emit('reset-game');
+    }
+
+    socket.on('game-reset', function() {
+      document.getElementById('lobbyArea').classList.remove('hidden');
+      document.getElementById('gameArea').classList.add('hidden');
+      document.getElementById('resultArea').classList.add('hidden');
+      document.body.classList.remove('tension-high');
+      document.getElementById('tensionOverlay').classList.remove('active');
+      document.getElementById('tensionOverlay').style.borderWidth = '0';
+    });
+
+    // 방 닫힘
+    socket.on('room-closed', function(data) {
+      alert(data.message);
+      window.location.href = '/';
+    });
+  </script>
+</body>
+</html>
