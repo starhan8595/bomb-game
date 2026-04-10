@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>📱 참가자 - 폭탄 돌리기</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background: linear-gradient(135deg, #0F0C29, #302B63, #24243E);
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.3s ease;
+    }
+    body.has-bomb {
+      background: linear-gradient(135deg, #1a0000, #4a0000, #1a0000);
+    }
+    body.tension-high {
+      animation: mobilePulse var(--pulse-speed, 1s) ease-in-out infinite alternate;
+    }
+    @keyframes mobilePulse {
+      from { background: linear-gradient(135deg, #1a0000, #4a0000, #1a0000); }
+      to { background: linear-gradient(135deg, #4a0000, #8B0000, #4a0000); }
+    }
+    .screen {
+      width: 100%; height: 100%;
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 20px; text-align: center;
+    }
+    .screen.active { display: flex; }
+
+    /* 로그인 화면 */
+    .login-title { font-size: 3rem; margin-bottom: 10px; }
+    .login-sub { font-size: 1.5rem; font-weight: 900; margin-bottom: 30px;
+      background: linear-gradient(135deg, #FF6B6B, #FFE66D);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .input-group { width: 100%; max-width: 340px; margin-bottom: 16px; }
+    .input-field {
+      width: 100%; padding: 18px; border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 16px; background: rgba(255,255,255,0.08);
+      color: #fff; font-family: 'Noto Sans KR', sans-serif;
+      font-size: 1.2rem; text-align: center; outline: none;
+      transition: border-color 0.3s ease;
+    }
+    .input-field:focus { border-color: #4ECDC4; }
+    .input-field::placeholder { color: #666; }
+    .btn-join {
+      width: 100%; max-width: 340px; padding: 18px;
+      border: none; border-radius: 16px;
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 1.2rem; font-weight: 900; cursor: pointer;
+      background: linear-gradient(135deg, #4ECDC4, #44BD9E);
+      color: #fff; box-shadow: 0 8px 30px rgba(78,205,196,0.4);
+      transition: all 0.3s ease;
+    }
+    .btn-join:hover { transform: translateY(-2px); }
+    .error-msg { color: #FF6B6B; margin-top: 12px; font-size: 0.9rem; }
+
+    /* 대기 화면 */
+    .wait-emoji { font-size: 5rem; margin-bottom: 16px; animation: waitBounce 2s ease-in-out infinite; }
+    @keyframes waitBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-15px); }
+    }
+    .wait-text { font-size: 1.3rem; color: #aaa; }
+    .wait-nickname {
+      font-size: 1.8rem; font-weight: 900; color: #4ECDC4; margin-bottom: 10px;
+    }
+
+    /* 게임 화면 - 관전 */
+    .spectate-info { font-size: 1.2rem; color: #aaa; margin-bottom: 10px; }
+    .spectate-holder {
+      font-size: 2.5rem; font-weight: 900; color: #FF6B6B;
+      animation: holderPulse 1s ease-in-out infinite alternate;
+    }
+    @keyframes holderPulse {
+      from { opacity: 0.7; } to { opacity: 1; }
+    }
+    .spectate-emoji { font-size: 4rem; margin-bottom: 10px; }
+    .safe-badge {
+      display: inline-block; padding: 12px 30px;
+      border-radius: 30px; background: rgba(78,205,196,0.15);
+      border: 1px solid rgba(78,205,196,0.3);
+      color: #4ECDC4; font-size: 1.1rem; font-weight: 700;
+      margin-top: 20px;
+    }
+
+    /* 게임 화면 - 폭탄 보유 */
+    .bomb-screen { background: transparent; }
+    .pass-btn {
+      width: 90vw; height: 70vh;
+      border: none; border-radius: 40px;
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 2.5rem; font-weight: 900;
+      cursor: pointer;
+      background: linear-gradient(135deg, #FF4444, #CC0000);
+      color: #fff;
+      box-shadow: 0 10px 50px rgba(255,0,0,0.5);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 10px;
+      transition: all 0.15s ease;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    .pass-btn:active {
+      transform: scale(0.95);
+      box-shadow: 0 5px 25px rgba(255,0,0,0.6);
+    }
+    .pass-btn .bomb-big { font-size: 6rem; animation: bombShake 0.3s ease-in-out infinite; }
+    @keyframes bombShake {
+      0%, 100% { transform: rotate(0deg); }
+      25% { transform: rotate(-8deg); }
+      75% { transform: rotate(8deg); }
+    }
+    .pass-btn .pass-text { font-size: 2rem; }
+    .pass-btn .pass-sub { font-size: 1rem; opacity: 0.7; }
+
+    /* 결과 화면 */
+    .result-emoji-big { font-size: 6rem; margin-bottom: 16px; }
+    .result-you-lost {
+      font-size: 2.5rem; font-weight: 900; color: #FF6B6B; margin-bottom: 8px;
+    }
+    .result-you-safe {
+      font-size: 2.5rem; font-weight: 900; color: #4ECDC4; margin-bottom: 8px;
+    }
+    .result-loser-info { font-size: 1.2rem; color: #aaa; margin-bottom: 20px; }
+
+    /* 긴장감 테두리 */
+    .tension-border {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 50;
+      border: 0px solid rgba(255,0,0,0);
+      transition: all 0.3s ease;
+    }
+    .tension-border.flashing {
+      animation: borderFlash var(--flash-speed, 1s) ease-in-out infinite;
+    }
+    @keyframes borderFlash {
+      0%, 100% { border-color: rgba(255,0,0,0.1); }
+      50% { border-color: rgba(255,0,0,0.7); }
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="tension-border" id="tensionBorder"></div>
+
+  <!-- 로그인 화면 -->
+  <div class="screen active" id="loginScreen">
+    <div class="login-title">🧨</div>
+    <div class="login-sub">폭탄 돌리기</div>
+    <div class="input-group">
+      <input type="tel" class="input-field" id="pinInput" placeholder="접속 코드 (PIN)" maxlength="6">
+    </div>
+    <div class="input-group">
+      <input type="text" class="input-field" id="nicknameInput" placeholder="닉네임" maxlength="10">
+    </div>
+    <button class="btn-join" onclick="joinRoom()">입장하기 🚀</button>
+    <div class="error-msg" id="errorMsg"></div>
+  </div>
+
+  <!-- 대기 화면 -->
+  <div class="screen" id="waitScreen">
+    <div class="wait-emoji">😊</div>
+    <div class="wait-nickname" id="waitNickname">---</div>
+    <div class="wait-text">호스트가 게임을 시작할 때까지<br>잠시 기다려주세요...</div>
+  </div>
+
+  <!-- 게임 화면 - 관전 (폭탄 없음) -->
+  <div class="screen" id="spectateScreen">
+    <div class="spectate-emoji">😌</div>
+    <div class="spectate-info">현재 폭탄 보유자</div>
+    <div class="spectate-holder" id="spectateHolder">---</div>
+    <div class="safe-badge">✅ 안전! 폭탄이 없어요</div>
+  </div>
+
+  <!-- 게임 화면 - 폭탄 보유 -->
+  <div class="screen bomb-screen" id="bombScreen">
+    <button class="pass-btn" id="passBtn" onclick="passBomb()">
+      <div class="bomb-big">🧨</div>
+      <div class="pass-text">빨리 넘겨!!!</div>
+      <div class="pass-sub">터지기 전에 탭하세요!</div>
+    </button>
+  </div>
+
+  <!-- 결과 - 패배 -->
+  <div class="screen" id="loseScreen">
+    <div class="result-emoji-big">💥😱💥</div>
+    <div class="result-you-lost">폭탄이 터졌습니다!</div>
+    <div class="result-loser-info">당신이 당첨되었습니다...</div>
+  </div>
+
+  <!-- 결과 - 생존 -->
+  <div class="screen" id="winScreen">
+    <div class="result-emoji-big">🎉😆🎉</div>
+    <div class="result-you-safe">생존 성공!</div>
+    <div class="result-loser-info" id="winLoserInfo">---에게 폭탄이 터졌습니다</div>
+  </div>
+
+  <script>
+    var socket = io();
+    var myId = null;
+    var hasBomb = false;
+    var passing = false;
+
+    // URL에서 PIN 파라미터 읽기
+    var urlParams = new URLSearchParams(window.location.search);
+    var urlPin = urlParams.get('pin');
+    if (urlPin) {
+      document.getElementById('pinInput').value = urlPin;
+    }
+
+    // 소켓 ID 저장
+    socket.on('connect', function() {
+      myId = socket.id;
+    });
+
+    // 방 입장
+    function joinRoom() {
+      var pin = document.getElementById('pinInput').value.trim();
+      var nickname = document.getElementById('nicknameInput').value.trim();
+
+      if (!pin || pin.length !== 6) {
+        document.getElementById('errorMsg').textContent = 'PIN 6자리를 입력하세요.';
+        return;
+      }
+      if (!nickname) {
+        document.getElementById('errorMsg').textContent = '닉네임을 입력하세요.';
+        return;
+      }
+
+      socket.emit('join-room', { pin: pin, nickname: nickname }, function(res) {
+        if (res.success) {
+          showScreen('waitScreen');
+          document.getElementById('waitNickname').textContent = res.nickname;
+        } else {
+          document.getElementById('errorMsg').textContent = res.message;
+        }
+      });
+    }
+
+    // 엔터키로 입장
+    document.getElementById('nicknameInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') joinRoom();
+    });
+    document.getElementById('pinInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') document.getElementById('nicknameInput').focus();
+    });
+
+    // 게임 시작
+    socket.on('game-started', function(data) {
+      hasBomb = (data.bombHolder === myId);
+      if (hasBomb) {
+        showScreen('bombScreen');
+        vibrate();
+      } else {
+        showScreen('spectateScreen');
+        document.getElementById('spectateHolder').textContent = data.bombHolderName;
+      }
+    });
+
+    // 폭탄 패스됨
+    socket.on('bomb-passed', function(data) {
+      hasBomb = (data.bombHolder === myId);
+      passing = false;
+      if (hasBomb) {
+        showScreen('bombScreen');
+        vibrate();
+      } else {
+        showScreen('spectateScreen');
+        document.getElementById('spectateHolder').textContent = data.bombHolderName;
+      }
+    });
+
+    // 폭탄 패스
+    function passBomb() {
+      if (!hasBomb || passing) return;
+      passing = true;
+      socket.emit('pass-bomb', function(res) {
+        if (!res.success) {
+          passing = false;
+        }
+      });
+    }
+
+    // 긴장감 업데이트
+    socket.on('tension-update', function(data) {
+      var ratio = data.ratio;
+      var border = document.getElementById('tensionBorder');
+
+      if (hasBomb && ratio > 0.3) {
+        border.classList.add('flashing');
+        var bw = Math.floor(ratio * 15);
+        border.style.borderWidth = bw + 'px';
+        var speed = Math.max(0.15, 1 - ratio * 0.85);
+        border.style.setProperty('--flash-speed', speed + 's');
+      }
+
+      if (hasBomb && ratio > 0.6) {
+        document.body.classList.add('tension-high');
+        var pulseSpeed = Math.max(0.2, 1 - ratio);
+        document.body.style.setProperty('--pulse-speed', pulseSpeed + 's');
+      }
+
+      // 패스 버튼 흔들림 강도 증가
+      if (hasBomb && ratio > 0.5) {
+        var btn = document.getElementById('passBtn');
+        var shakeAmount = Math.floor(ratio * 8);
+        btn.style.animation = 'buttonShake ' + Math.max(0.05, 0.3 - ratio * 0.25) + 's ease-in-out infinite';
+      }
+    });
+
+    // 폭발!
+    socket.on('bomb-exploded', function(data) {
+      document.body.classList.remove('has-bomb', 'tension-high');
+      document.getElementById('tensionBorder').classList.remove('flashing');
+      document.getElementById('tensionBorder').style.borderWidth = '0';
+
+      if (data.loserId === myId) {
+        showScreen('loseScreen');
+        vibrateHeavy();
+      } else {
+        showScreen('winScreen');
+        document.getElementById('winLoserInfo').textContent =
+          data.loserName + '에게 폭탄이 터졌습니다!';
+      }
+    });
+
+    // 게임 리셋
+    socket.on('game-reset', function() {
+      hasBomb = false;
+      passing = false;
+      document.body.classList.remove('has-bomb', 'tension-high');
+      document.getElementById('tensionBorder').classList.remove('flashing');
+      document.getElementById('tensionBorder').style.borderWidth = '0';
+      showScreen('waitScreen');
+    });
+
+    // 방 닫힘
+    socket.on('room-closed', function(data) {
+      alert(data.message);
+      window.location.href = '/';
+    });
+
+    // 화면 전환
+    function showScreen(screenId) {
+      var screens = document.querySelectorAll('.screen');
+      screens.forEach(function(s) { s.classList.remove('active'); });
+      document.getElementById(screenId).classList.add('active');
+
+      if (screenId === 'bombScreen') {
+        document.body.classList.add('has-bomb');
+      } else {
+        document.body.classList.remove('has-bomb');
+      }
+    }
+
+    // 진동
+    function vibrate() {
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    }
+    function vibrateHeavy() {
+      if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500]);
+    }
+  </script>
+
+  <!-- 추가 애니메이션 -->
+  <style>
+    @keyframes buttonShake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-4px) rotate(-1deg); }
+      75% { transform: translateX(4px) rotate(1deg); }
+    }
+  </style>
+</body>
+</html>
