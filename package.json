@@ -1,0 +1,14 @@
+{
+  "name": "bomb-pass-game",
+  "version": "1.0.0",
+  "description": "랜덤 폭탄 돌리기 실시간 멀티플레이 게임",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.4",
+    "qrcode": "^1.5.3"
+  }
+}
