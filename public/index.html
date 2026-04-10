@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>🧨 폭탄 돌리기</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background: linear-gradient(135deg, #0F0C29, #302B63, #24243E);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      overflow: hidden;
+    }
+    .landing {
+      text-align: center;
+      padding: 40px 20px;
+      max-width: 500px;
+      width: 100%;
+    }
+    .bomb-icon {
+      font-size: 6rem;
+      animation: bombBounce 1.5s ease-in-out infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes bombBounce {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(10deg); }
+    }
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 900;
+      margin-bottom: 10px;
+      background: linear-gradient(135deg, #FF6B6B, #FFE66D);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle { color: #aaa; margin-bottom: 40px; font-size: 1rem; }
+    .btn-group { display: flex; flex-direction: column; gap: 16px; }
+    .btn {
+      display: block;
+      padding: 20px;
+      border: none;
+      border-radius: 20px;
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 1.2rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      text-align: center;
+    }
+    .btn-host {
+      background: linear-gradient(135deg, #FF6B6B, #EE5A24);
+      color: #fff;
+      box-shadow: 0 8px 30px rgba(255,107,107,0.4);
+    }
+    .btn-host:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(255,107,107,0.6); }
+    .btn-player {
+      background: linear-gradient(135deg, #4ECDC4, #44BD9E);
+      color: #fff;
+      box-shadow: 0 8px 30px rgba(78,205,196,0.4);
+    }
+    .btn-player:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(78,205,196,0.6); }
+    .particles {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 0; overflow: hidden;
+    }
+    .particle {
+      position: absolute;
+      width: 4px; height: 4px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 50%;
+      animation: particleDrift 8s linear infinite;
+    }
+    @keyframes particleDrift {
+      0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; }
+    }
+    .landing { position: relative; z-index: 1; }
+  </style>
+</head>
+<body>
+  <div class="particles" id="particles"></div>
+  <div class="landing">
+    <div class="bomb-icon">🧨</div>
+    <h1>폭탄 돌리기</h1>
+    <p class="subtitle">Hot Potato Game — 직장 동료와 함께 즐기는 긴장감 넘치는 파티 게임!</p>
+    <div class="btn-group">
+      <a href="/host.html" class="btn btn-host">🖥️ 방 만들기 (호스트)</a>
+      <a href="/player.html" class="btn btn-player">📱 게임 참가하기</a>
+    </div>
+  </div>
+  <script>
+    var p = document.getElementById('particles');
+    for (var i = 0; i < 30; i++) {
+      var d = document.createElement('div');
+      d.className = 'particle';
+      d.style.left = Math.random() * 100 + '%';
+      d.style.animationDelay = Math.random() * 8 + 's';
+      d.style.animationDuration = (5 + Math.random() * 8) + 's';
+      d.style.width = d.style.height = (2 + Math.random() * 4) + 'px';
+      p.appendChild(d);
+    }
+  </script>
+</body>
+</html>
